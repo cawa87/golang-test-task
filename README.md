@@ -38,7 +38,7 @@
           }
         }
       },
-      "elemets": {
+      "elements": {
         "type": "array",
         "description": "In case of 2XX response status, \"text\/html\" content type and non-zero content length, list of HTML-tags, occured.",
         "items": {
