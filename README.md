@@ -17,7 +17,7 @@
       "url": {
         "type": "string",
         "format": "uri",
-        "description": "uri from input list",
+        "description": "uri from input list"
       },
       "meta": {
         "type": "object",
