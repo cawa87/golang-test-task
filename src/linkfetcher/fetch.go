@@ -18,7 +18,18 @@ const (
 	RequestTimeout = time.Second * 60
 )
 
-func fetchHandler(c *gin.Context) {
+type fetcherServer struct {
+}
+
+// create new fetcher backend
+func newFetcher() (*fetcherServer, error) {
+
+	fs := &fetcherServer{}
+	return fs, nil
+}
+
+// GIN handler
+func (fs *fetcherServer) handle(c *gin.Context) {
 
 	var request Request
 
@@ -31,7 +42,8 @@ func fetchHandler(c *gin.Context) {
 		})
 	}
 
-	result, err := doFetching(request)
+	// call handler
+	result, err := fs.do(request)
 	if err != nil {
 		log.Println("Unrecoverable error while fetching the request: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -42,7 +54,7 @@ func fetchHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func doFetching(urls []string) (*Response, error) {
+func (fs *fetcherServer) do(urls []string) (*Response, error) {
 
 	var (
 		result = Response(make([]*ResponseItem, len(urls)))
@@ -57,7 +69,7 @@ func doFetching(urls []string) (*Response, error) {
 			// copies from loop ones
 
 			// do the fetching
-			res, err := fetchWorker(url)
+			res, err := fs.work(url)
 			if err != nil {
 				// error feedback is wanted
 				res = &ResponseItem{
@@ -81,7 +93,7 @@ func doFetching(urls []string) (*Response, error) {
 	return &result, nil
 }
 
-func fetchWorker(url string) (*ResponseItem, error) {
+func (fs *fetcherServer) work(url string) (*ResponseItem, error) {
 
 	// do GET with timeout
 	client := http.Client{

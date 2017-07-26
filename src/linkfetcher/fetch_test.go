@@ -10,6 +10,7 @@ import (
 	"gopkg.in/jarcoal/httpmock.v1"
 )
 
+// Sample test that uses HTTP mock to fake HTTP request
 func TestFetchSampleHTML(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
@@ -50,7 +51,10 @@ func TestFetchSampleHTML(t *testing.T) {
 	httpmock.RegisterResponder("GET", sampleURL,
 		httpmock.ResponderFromResponse(response))
 
-	res, err := doFetching([]string{
+	fs, err := newFetcher()
+	assert.Nil(t, err)
+
+	res, err := fs.do([]string{
 		"https://linux.org.ru",
 	})
 
