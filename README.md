@@ -2,61 +2,15 @@
 Тестовая задача для Golang разработчика
 
 
-## Задача
+## Сборка и запуск
 
-- Форкнуть репозиторий
-- Написать сервис на Golang, который бы принимал POST-запрос с json-массивом url-ов в теле и возвращал ответ с JSON-массивом вида, вида:
+1. Установить [gb](https://getgb.io/)
+1. Восстановить зависимости: `gb vendor restore`
+1. Собрать проект: `gb build`
+1. Запустить тесты: `gb test -v`
 
-```
-{
-  "type": "array",
-  "items": {
-    "type": "object",
-    "required": ["url", "meta"],
-    "properties": {
-      "url": {
-        "type": "string",
-        "format": "uri",
-        "description": "uri from input list",
-      },
-      "meta": {
-        "type": "object",
-        "required": ["status"],
-        "properties": {
-          "status": {
-              "type": "integer",
-              "description": "Response status of this uri"
-          },
-          "content-type": {
-               "type": "string",
-               "description": "In case of 2XX response status, value of mime-type part of Content-Type header (if exists)"
-          },
-          "content-length": {
-                "type": "integer",
-                "minimum": 0,
-                "description": "In case of 2XX response status, length of response body (be careful, response could be chunked)."
-          }
-        }
-      },
-      "elemets": {
-        "type": "array",
-        "description": "In case of 2XX response status, \"text\/html\" content type and non-zero content length, list of HTML-tags, occured.",
-        "items": {
-          "type": "object",
-          "required": ["tag-name", "count"],
-          "properties": {
-            "tag-name": {"type": "string"},
-            "count": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Number of times, the current tag occures in response"
-            }
-          }
-        }
-      }
-    }
-  }
-}
-```
+## Замечания
 
-- Завернуть сервис в docker-контейнер.
+1. По-хорошему, контейнер должен быть на базе Alpine. Для этого нужно, чтобы сборка и прогон тестов тоже проходили в докере. Не хочу копировать сюда свою баше-лапшу для этого, поскольку по-хорошему этим все равно должна заниматься билд-сервер.
+2. Внешние данные пользователей нельзя без фильтрации передавать в этот сервис: для этого должа быть фильтрация частных IP-диапазонов. 
+3. Cтоит группировать ссылки по серверам и/или использовать ограниченное количество воркеров для загрузки ссылок. Сделал так, т.к. детали реализации зависят от ньюансов реального использования, которого здесь нет.
