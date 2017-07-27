@@ -60,3 +60,21 @@
 ```
 
 - Завернуть сервис в docker-контейнер.
+
+## Результат
+
+Сборка бинарника
+
+`CGO_ENABLED=0 GOOS=linux go build -tags netgo -ldflags "-s" -a -installsuffix cgo -o service`
+
+Сборка образа
+
+`docker build -t service .`
+
+Запуск
+
+`docker run -it -p 8080:8080 service`
+
+Проверка
+
+`curl -X POST -H 'Content-Type:application/json' --data '["http://mail.ru", "http://ya.ru", "google.com"]' http://localhost:8080 | jq`
