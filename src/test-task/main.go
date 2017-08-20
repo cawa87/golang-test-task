@@ -14,10 +14,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	fetchPipe := make(chan FetchAndScanTask)
-	startFetchWorkers(config.fetchUrlsConcurrency, fetchPipe)
+	fetchAndScan := NewFetchAndScan(
+		config.fetchUrlConcurrency, config.scanBodyConcurrency, 1000)
 
-	route := &Route{fetchPipe}
+	route := &Route{fetchAndScan}
 	if e := http.ListenAndServe(config.listen, route); e != nil {
 		printlog.Error(er.Er(e, "Fail to start server"))
 		os.Exit(2)

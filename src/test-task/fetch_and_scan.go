@@ -1,28 +1,30 @@
 package main
 
 import "er"
-import "mime"
 import "net/http"
 import "sync/atomic"
 
-// Any task's always being processed exclusively
+type FetchAndScan struct {
+	fetchPipe chan *FetchAndScanTask
+	scanPipe  chan *FetchAndScanTask
+}
+
+// Any task's always processed exclusively
 type FetchAndScanTask struct {
 	context *FetchAndScanContext
-	data    *FetchAndScanData
+	data    FetchAndScanData
+	e       error
 }
 
 type FetchAndScanContext struct {
-	result chan<- *FetchAndScanData
-	canceled int32                  // Shared
+	done     chan<- *FetchAndScanTask
+	canceled int32 // Shared
 }
 
 type FetchAndScanData struct {
 	Url     string                     `json:"url"`
 	Meta    FetchAndScanDataMeta       `json:"meta,omitempty"`
 	Elemets []FetchAndScanDataElemets  `json:"elemets,omitempty"`
-
-	e error
-	response *http.Response
 }
 
 type FetchAndScanDataMeta struct {
@@ -36,9 +38,52 @@ type FetchAndScanDataElemets struct {
 	Count   int    `json:"count"`
 }
 
-func (t FetchAndScanTask) Done(e error) {
-	if t.data.e == nil { t.data.e = e }
-	t.context.result <- t.data
+func NewFetchAndScan(
+	fetchWorkers, scanWorkers, taskBufferSize int) *FetchAndScan {
+	fetchPipe := make(chan *FetchAndScanTask, taskBufferSize)
+	scanPipe  := make(chan *FetchAndScanTask, taskBufferSize)
+	for i := 0; i < fetchWorkers; i++ { go fetchWorker(fetchPipe, scanPipe) }
+	for i := 0; i < scanWorkers;  i++ { go scanWorker(scanPipe) }
+	return &FetchAndScan{fetchPipe, scanPipe}
+}
+
+func NewFetchAndScanTask(
+	context *FetchAndScanContext, url string) *FetchAndScanTask {
+	task := &FetchAndScanTask{}
+		task.context = context
+		task.data.Url = url
+	return task
+}
+
+func (fs *FetchAndScan) Do(urls []string) (result []FetchAndScanData, E error) {
+	result = []FetchAndScanData{}
+	if len(urls) < 1 { return }
+
+	done    := make(chan *FetchAndScanTask)
+	context := FetchAndScanContext{done, 0}
+	go func() {
+		for _, url := range urls {
+			fs.fetchPipe <- NewFetchAndScanTask(&context, url) }
+	}()
+
+	processed := 0
+	for task := range done {
+		if task.e != nil {
+			E = task.e
+			context.Cancel()
+		} else {
+			result = append(result, task.data)
+		}
+
+		processed += 1
+		if processed >= len(urls) { break }
+	}
+	return
+}
+
+func (t *FetchAndScanTask) Done(e error) {
+	if t.e == nil { t.e = e }
+	t.context.done <- t
 }
 
 func (c *FetchAndScanContext) Cancel() {
@@ -49,74 +94,31 @@ func (c *FetchAndScanContext) IsCanceled() bool {
 	return atomic.LoadInt32(&c.canceled) != 0
 }
 
-func (d *FetchAndScanData) Release() {
-	if d.response != nil {
-		d.response.Body.Close()
-		d.response = nil
-	}
-}
-
-func startFetchWorkers(workers int, pipe <-chan FetchAndScanTask)  {
-	for i := 0; i < workers; i++ { go fetchWorker(pipe) }
-}
-
-func headerGetMediaType(header http.Header, key string) string {
-	if a := header.Get(key); a != "" {
-		t, _, e := mime.ParseMediaType(a)
-		if e == nil { return t }}
-	return ""
-}
-
-func fetchWorker(pipe <-chan FetchAndScanTask) {
+func fetchWorker(
+	pipe <-chan *FetchAndScanTask, scanPipe chan<- *FetchAndScanTask,
+){
 	for task := range pipe {
 		if task.context.IsCanceled() { task.Done(nil); continue }
 
 		response, e := http.Get(task.data.Url)
 		if e != nil { task.Done(er.Er(e, "http.Get")); continue }
+// TODO: response.Body.close()
 
-		task.data.response = response
-		task.data.Meta.Status = response.StatusCode
+		data := &task.data
+		data.Meta.Status = response.StatusCode
 		if ct := headerGetMediaType(response.Header, "content-type"); ct != "" {
-			task.data.Meta.ContentType = &ct }
+			data.Meta.ContentType = &ct }
 		if cl := response.ContentLength; cl >= 0 {
-			task.data.Meta.ContentLength = &cl }
+			data.Meta.ContentLength = &cl }
 
-		task.Done(nil)
+		scanPipe <- task
 	}
 }
 
-func fetchAndScan(
-	urls []string,
-	fetchPipe chan<- FetchAndScanTask,
-) (result []*FetchAndScanData, E error) {
-	result = []*FetchAndScanData{}
-	if len(urls) < 1 { return }
+func scanWorker(pipe <-chan *FetchAndScanTask) {
+	for task := range pipe {
+		if task.context.IsCanceled() { task.Done(nil); continue }
 
-	output := make(chan *FetchAndScanData)
-	defer close(output)
-
-	context := FetchAndScanContext{output, 0}
-	go func() {
-		for _, url := range urls {
-			data := FetchAndScanData{}
-			data.Url = url
-			fetchPipe <- FetchAndScanTask{&context, &data}
-		}
-	}()
-
-	processed := 0
-	for data := range output {
-		data.Release()
-
-		if data.e != nil {
-			E = data.e
-			context.Cancel()
-		} else {
-			result = append(result, data)
-		}
-
-		processed += 1
-		if processed >= len(urls) { break }
+		task.Done(nil)
 	}
-	return
 }

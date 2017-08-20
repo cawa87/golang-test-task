@@ -9,7 +9,7 @@ build: $(GB)
 	GOOS=$(TARGET_GOOS) GOARCH=$(TARGET_GOARCH) $(GB) build
 
 test: $(GB)
-	gb test
+	gb test #-test.timeout 1s
 
 clean:
 	rm -rfv go bin pkg

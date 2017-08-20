@@ -6,7 +6,7 @@ import "net/http"
 import "printlog"
 
 type Route struct {
-	fetchPipe chan<- FetchAndScanTask
+	fetchAndScan *FetchAndScan
 }
 
 func (r *Route) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -17,7 +17,7 @@ func (r *Route) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	if e != nil {
 		res.WriteHeader(http.StatusBadRequest); return }
 
-	data, e := fetchAndScan(urls, r.fetchPipe)
+	data, e := r.fetchAndScan.Do(urls)
 	if e != nil {
 		printlog.Error(er.Er(e, "fetchAndScan"))
 		res.WriteHeader(http.StatusInternalServerError)
