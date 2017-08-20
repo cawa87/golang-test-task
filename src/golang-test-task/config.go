@@ -11,7 +11,7 @@ Usage:
 
 Options:
 	-h, --help  This help
-	-l ADDR     Listen on [host]:port [default: :8080]
+	-l ADDR     Listen on [host]:port [default: :80]
 	-f COUNT    Fetch max COUNT urls in parallel [default: 10]
 	-s COUNT    Scan max COUNT bodies in parallel [default: 0]
 `
