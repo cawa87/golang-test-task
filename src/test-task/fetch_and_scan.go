@@ -1,8 +1,10 @@
 package main
 
 import "er"
+import "io/ioutil"
 import "net/http"
 import "sync/atomic"
+import "time"
 
 type FetchAndScan struct {
 	fetchPipe chan *FetchAndScanTask
@@ -14,6 +16,7 @@ type FetchAndScanTask struct {
 	context *FetchAndScanContext
 	data    FetchAndScanData
 	e       error
+	body    []byte
 }
 
 type FetchAndScanContext struct {
@@ -100,24 +103,47 @@ func fetchWorker(
 	for task := range pipe {
 		if task.context.IsCanceled() { task.Done(nil); continue }
 
-		response, e := http.Get(task.data.Url)
-		if e != nil { task.Done(er.Er(e, "http.Get")); continue }
-// TODO: response.Body.close()
+		httpClient := http.Client{Timeout: 10 * time.Second}
+		req, e := http.NewRequest("GET", task.data.Url, nil)
+		if e != nil {
+			task.Done(er.Er(e, "http.NewRequest", "url", task.data.Url))
+			continue
+		}
+		req.Header.Set("Accept-Encoding", "") // We need original content, not compressed
 
-		data := &task.data
-		data.Meta.Status = response.StatusCode
-		if ct := headerGetMediaType(response.Header, "content-type"); ct != "" {
-			data.Meta.ContentType = &ct }
-		if cl := response.ContentLength; cl >= 0 {
-			data.Meta.ContentLength = &cl }
+		res, e := httpClient.Do(req)
+		if e != nil {
+			task.Done(er.Er(e, "http.Client.Do", "url", task.data.Url))
+			continue
+		}
+		defer res.Body.Close()
 
-		scanPipe <- task
+		task.data.Meta.Status = res.StatusCode
+		ct := headerGetMediaType(res.Header, "content-type")
+			if ct != "" { task.data.Meta.ContentType = &ct }
+		cl := res.ContentLength
+			if cl >= 0 { task.data.Meta.ContentLength = &cl }
+
+		if ct == "text/html" {
+			task.body, e = ioutil.ReadAll(res.Body)
+			if e != nil {
+				task.Done(er.Er(e, "Fail to read body", "url", task.data.Url))
+				continue
+			}
+			scanPipe <- task
+			continue
+		}
+
+		task.Done(nil)
 	}
 }
 
 func scanWorker(pipe <-chan *FetchAndScanTask) {
 	for task := range pipe {
 		if task.context.IsCanceled() { task.Done(nil); continue }
+
+		cl := int64(len(task.body))
+		task.data.Meta.ContentLength = &cl
 
 		task.Done(nil)
 	}
