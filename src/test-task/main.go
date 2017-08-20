@@ -13,6 +13,7 @@ func main() {
 		printlog.Error(er.Er(e, "Fail to load config"))
 		os.Exit(1)
 	}
+	printlog.Info("Config %#v", config)
 
 	fetchAndScan := NewFetchAndScan(
 		config.fetchUrlConcurrency, config.scanBodyConcurrency, 1000)

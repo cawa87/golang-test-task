@@ -155,12 +155,13 @@ func TestFetchAndScanUrlWithNoContentLengthButData(t *testing.T) {
 	httpmock.Activate(); defer httpmock.DeactivateAndReset()
 	httpmock.RegisterResponder("GET", "https://one",
 		func(req *http.Request) (*http.Response, error) {
-			resp := httpmock.NewStringResponse(123, "12345")
-			return resp, nil
+			res := httpmock.NewStringResponse(200, "<a></a>")
+			res.Header.Set("Content-Length", "")
+			return res, nil
 		})
 	testFetchAndScanResult(t, NewFetchAndScan(1, 1, 0),
 		[]string{"https://one"},
-		`[{"url":"https://one","meta":{"status":123,"content-length":0}}]`,
+		`[{"url":"https://one","meta":{"status":200}}]`,
 	)
 }
 
@@ -168,12 +169,57 @@ func TestFetchAndScanUrlWithNoContentLengthButHtmlData(t *testing.T) {
 	httpmock.Activate(); defer httpmock.DeactivateAndReset()
 	httpmock.RegisterResponder("GET", "https://one",
 		func(req *http.Request) (*http.Response, error) {
-			resp := httpmock.NewStringResponse(123, "12345")
-			resp.Header.Set("Content-Type", "text/html")
-			return resp, nil
+			res := httpmock.NewStringResponse(200, "<a></a>")
+			res.Header.Set("Content-Type", "text/html")
+			res.Header.Set("Content-Length", "")
+			return res, nil
 		})
 	testFetchAndScanResult(t, NewFetchAndScan(1, 1, 0),
 		[]string{"https://one"},
-		`[{"url":"https://one","meta":{"status":123,"content-type":"text/html","content-length":5}}]`,
+		`[{"url":"https://one","meta":{"status":200,"content-type":"text/html","content-length":7},"elemets":[{"tag-name":"a","count":2}]}]`,
+	)
+}
+
+func TestFetchAndScanUrlWithHtmlButNot2XX(t *testing.T) {
+	httpmock.Activate(); defer httpmock.DeactivateAndReset()
+	httpmock.RegisterResponder("GET", "https://one",
+		func(req *http.Request) (*http.Response, error) {
+			res := httpmock.NewStringResponse(123, "<a></a>")
+			res.Header.Set("Content-Type", "text/html")
+			res.Header.Set("Content-Length", "7")
+			return res, nil
+		})
+	testFetchAndScanResult(t, NewFetchAndScan(1, 1, 0),
+		[]string{"https://one"},
+		`[{"url":"https://one","meta":{"status":123,"content-type":"text/html","content-length":7}}]`,
+	)
+}
+
+func TestFetchAndScanUrlWithEmptyHtml(t *testing.T) {
+	httpmock.Activate(); defer httpmock.DeactivateAndReset()
+	httpmock.RegisterResponder("GET", "https://one",
+		func(req *http.Request) (*http.Response, error) {
+			res := httpmock.NewStringResponse(200, "")
+			res.Header.Set("Content-Type", "text/html")
+			return res, nil
+		})
+	testFetchAndScanResult(t, NewFetchAndScan(1, 1, 0),
+		[]string{"https://one"},
+		`[{"url":"https://one","meta":{"status":200,"content-type":"text/html","content-length":0}}]`,
+	)
+}
+
+func TestFetchAndScanUrlWithHtml(t *testing.T) {
+	httpmock.Activate(); defer httpmock.DeactivateAndReset()
+	httpmock.RegisterResponder("GET", "https://one",
+		func(req *http.Request) (*http.Response, error) {
+			res := httpmock.NewStringResponse(200,
+				"<a></a><a/>b<!--c--><d>")
+			res.Header.Set("Content-Type", "text/html")
+			return res, nil
+		})
+	testFetchAndScanResult(t, NewFetchAndScan(1, 1, 0),
+		[]string{"https://one"},
+		`[{"url":"https://one","meta":{"status":200,"content-type":"text/html","content-length":23},"elemets":[{"tag-name":"a","count":3},{"tag-name":"d","count":1}]}]`,
 	)
 }

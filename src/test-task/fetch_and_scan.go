@@ -1,8 +1,13 @@
 package main
 
+import "bytes"
 import "er"
+import "golang.org/x/net/html"
+import "http_plus"
+import "io"
 import "io/ioutil"
 import "net/http"
+import "sort"
 import "sync/atomic"
 import "time"
 
@@ -25,9 +30,9 @@ type FetchAndScanContext struct {
 }
 
 type FetchAndScanData struct {
-	Url     string                     `json:"url"`
-	Meta    FetchAndScanDataMeta       `json:"meta,omitempty"`
-	Elemets []FetchAndScanDataElemets  `json:"elemets,omitempty"`
+	Url     string                    `json:"url"`
+	Meta    FetchAndScanDataMeta      `json:"meta,omitempty"`
+	Elements []FetchAndScanDataElement `json:"elemets,omitempty"`
 }
 
 type FetchAndScanDataMeta struct {
@@ -36,7 +41,7 @@ type FetchAndScanDataMeta struct {
 	ContentLength *int64  `json:"content-length,omitempty"`
 }
 
-type FetchAndScanDataElemets struct {
+type FetchAndScanDataElement struct {
 	TagName string `json:"tag-name"`
 	Count   int    `json:"count"`
 }
@@ -103,6 +108,7 @@ func fetchWorker(
 	for task := range pipe {
 		if task.context.IsCanceled() { task.Done(nil); continue }
 
+		// Request Url
 		httpClient := http.Client{Timeout: 10 * time.Second}
 		req, e := http.NewRequest("GET", task.data.Url, nil)
 		if e != nil {
@@ -118,13 +124,16 @@ func fetchWorker(
 		}
 		defer res.Body.Close()
 
-		task.data.Meta.Status = res.StatusCode
-		ct := headerGetMediaType(res.Header, "content-type")
+		// Fill Status, ContentType, ContentLength
+		sc := res.StatusCode
+			task.data.Meta.Status = sc
+		ct := http_plus.HeaderGetMediaType(res.Header, "content-type")
 			if ct != "" { task.data.Meta.ContentType = &ct }
-		cl := res.ContentLength
+		cl := http_plus.HeaderGetContentLength(res.Header, res.ContentLength)
 			if cl >= 0 { task.data.Meta.ContentLength = &cl }
 
-		if ct == "text/html" {
+		// Read body if text/html and forward for scanning
+		if 200 <= sc && sc < 300 && ct == "text/html" {
 			task.body, e = ioutil.ReadAll(res.Body)
 			if e != nil {
 				task.Done(er.Er(e, "Fail to read body", "url", task.data.Url))
@@ -139,11 +148,35 @@ func fetchWorker(
 }
 
 func scanWorker(pipe <-chan *FetchAndScanTask) {
-	for task := range pipe {
+	worker: for task := range pipe {
 		if task.context.IsCanceled() { task.Done(nil); continue }
 
+		// Update ContentLength in case of the original header missed or was invalid
 		cl := int64(len(task.body))
 		task.data.Meta.ContentLength = &cl
+
+		// Count HTML tags
+		tags := map[string]int{}
+		z := html.NewTokenizer(bytes.NewReader(task.body))
+		for {
+			t, e := z.Next(), z.Err()
+			if e == io.EOF { break }
+			if e != nil    { task.Done(er.Er(e, "Fail to parse html")); continue worker }
+			switch t { case html.StartTagToken, html.EndTagToken, html.SelfClosingTagToken:
+				tag, _ := z.TagName()
+				tags[string(tag)]++
+			}
+		}
+
+		// Tags to Elements
+		elements := []FetchAndScanDataElement{}
+		for tag, count := range tags {
+			elements = append(elements,
+				FetchAndScanDataElement{tag, count})
+		}
+		sort.Slice(elements, func(a, b int) bool {
+			return elements[a].TagName < elements[b].TagName })
+		task.data.Elements = elements
 
 		task.Done(nil)
 	}
