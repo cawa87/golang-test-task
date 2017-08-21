@@ -5,11 +5,14 @@ export TARGET_GOARCH  ?= amd64
 GB         = $(GOPATH)/bin/gb
 EXECUTABLE = bin/golang-test-task-$(TARGET_GOOS)-$(TARGET_GOARCH)
 
-build: $(GB)
+build: $(GB) vendor/src
 	GOOS=$(TARGET_GOOS) GOARCH=$(TARGET_GOARCH) $(GB) build
 
-test: $(GB)
+test: $(GB) vendor/src
 	gb test #-test.timeout 1s
+
+vendor/src: $(GB) vendor/manifest
+	gb vendor restore
 
 clean:
 	rm -rfv go bin pkg
