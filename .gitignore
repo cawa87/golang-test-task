@@ -1,0 +1,4 @@
+vendor/src/
+bin/
+pkg/
+*~
