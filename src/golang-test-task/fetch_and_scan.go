@@ -122,7 +122,6 @@ func fetchWorker(
 			task.Done(er.Er(e, "http.Client.Do", "url", task.data.Url))
 			continue
 		}
-		defer res.Body.Close()
 
 		// Fill Status, ContentType, ContentLength
 		sc := res.StatusCode
@@ -135,6 +134,7 @@ func fetchWorker(
 		// Read body if text/html and forward for scanning
 		if 200 <= sc && sc < 300 && ct == "text/html" {
 			task.body, e = ioutil.ReadAll(res.Body)
+			res.Body.Close()
 			if e != nil {
 				task.Done(er.Er(e, "Fail to read body", "url", task.data.Url))
 				continue
@@ -143,6 +143,7 @@ func fetchWorker(
 			continue
 		}
 
+		res.Body.Close()
 		task.Done(nil)
 	}
 }
