@@ -1,0 +1,9 @@
+logLevel: debug
+server:
+  host: 127.0.0.1
+  port: 8085
+fetcher:
+  timeout: 3s
+  workerCount: 1000
+parser:
+  workerCount: 10
