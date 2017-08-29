@@ -103,7 +103,7 @@ type Resolver struct {
 	waitResponseTimeoutInMs time.Duration
 	limitChannel            chan bool
 	contextes               []*HandleContext
-	contextBusy             []int32
+	contextBusy             []*int32
 	countRequests           int64
 	jobsChannel             chan func()
 	log                     *Logger
@@ -113,9 +113,13 @@ func NewResolver(waitResponseTimeoutInMs time.Duration, limitRequests int, l *Lo
 	r = &Resolver{
 		waitResponseTimeoutInMs: waitResponseTimeoutInMs,
 		limitChannel:            make(chan bool, limitRequests),
-		contextes:               make([]*HandleContext, limitRequests),
-		contextBusy:             make([]int32, limitRequests),
+		contextes:               make([]*HandleContext, limitRequests, limitRequests),
+		contextBusy:             make([]*int32, limitRequests, limitRequests),
 		log:                     l,
+	}
+	for _, v := range r.contextBusy {
+		var i int32
+		v = &i
 	}
 	for i := 0; i < limitRequests; i++ {
 		r.limitChannel <- true
@@ -250,7 +254,7 @@ func (resolver *Resolver) handleResolve(w http.ResponseWriter, r *http.Request) 
 	<-resolver.limitChannel
 	index := 0
 	for i, val := range resolver.contextBusy {
-		if swapped := atomic.CompareAndSwapInt32(&val, 0, 1); swapped {
+		if swapped := atomic.CompareAndSwapInt32(val, 0, 1); swapped {
 			index = i
 			break
 		}
@@ -261,11 +265,11 @@ func (resolver *Resolver) handleResolve(w http.ResponseWriter, r *http.Request) 
 	}
 	context := resolver.contextes[index]
 	defer func() {
-		val := atomic.AddInt64(&resolver.countRequests, -1)
-		log.Info("Requests:", val)
-		resolver.limitChannel <- true
 		context.clear()
-		atomic.StoreInt32(&resolver.contextBusy[index], 0)
+		atomic.StoreInt32(resolver.contextBusy[index], 0)
+		val := atomic.AddInt64(&resolver.countRequests, -1)
+		resolver.limitChannel <- true
+		log.Info("Requests:", val)
 	}()
 	if err := resolver.getUrls(r, context); err != nil {
 		log.Debug(err)
@@ -316,6 +320,7 @@ func main() {
 			waitGroup.Done()
 		}()
 	}
+	http.Server{}
 	http.HandleFunc("/resolve", resolver.handleResolve)
 	defer close(resolver.jobsChannel)
 	defer waitGroup.Wait()
