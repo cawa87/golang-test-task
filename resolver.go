@@ -320,7 +320,6 @@ func main() {
 			waitGroup.Done()
 		}()
 	}
-	http.Server{}
 	http.HandleFunc("/resolve", resolver.handleResolve)
 	defer close(resolver.jobsChannel)
 	defer waitGroup.Wait()
