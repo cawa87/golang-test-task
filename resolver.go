@@ -117,9 +117,9 @@ func NewResolver(waitResponseTimeoutInMs time.Duration, limitRequests int, l *Lo
 		contextBusy:             make([]*int32, limitRequests, limitRequests),
 		log:                     l,
 	}
-	for _, v := range r.contextBusy {
-		var i int32
-		v = &i
+	for i := 0; i < len(r.contextBusy); i++ {
+		var val int32
+		r.contextBusy[i] = &val
 	}
 	for i := 0; i < limitRequests; i++ {
 		r.limitChannel <- true
@@ -329,3 +329,4 @@ func main() {
 	}
 
 }
+
