@@ -289,14 +289,14 @@ func (resolver *Resolver) handleResolve(w http.ResponseWriter, r *http.Request) 
 }
 
 const (
-	limitOfCuncurrentRequestsDefault = 2000
+	limitOfConcurrentRequestsDefault = 2000
 )
 
 func main() {
 	cpusCount := runtime.NumCPU()
 	bindAddr := flag.String("bind", "", "address to bind")
 	workers := flag.Int("workers", cpusCount, "workers count")
-	limitOfCuncurrentRequests := flag.Int("cuncurrentRequests", limitOfCuncurrentRequestsDefault, "limit of cuncurrent requests")
+	limitOfConcurrentRequests := flag.Int("concurrentRequests", limitOfConcurrentRequestsDefault, "limit of cuncurrent requests")
 	flag.Parse()
 	if bindAddr == nil || *bindAddr == "" {
 		flag.Usage()
@@ -304,10 +304,10 @@ func main() {
 
 	}
 	logger := NewLogger("", true, false, false)
-	if *limitOfCuncurrentRequests <= 0 {
-		*limitOfCuncurrentRequests = limitOfCuncurrentRequestsDefault
+	if *limitOfConcurrentRequests <= 0 {
+		*limitOfConcurrentRequests = limitOfConcurrentRequestsDefault
 	}
-	resolver := NewResolver(time.Duration(2*1000*time.Millisecond), *limitOfCuncurrentRequests, logger)
+	resolver := NewResolver(time.Duration(2*1000*time.Millisecond), *limitOfConcurrentRequests, logger)
 	resolver.jobsChannel = make(chan func(), 1000000)
 	if *workers <= 0 {
 		*workers = cpusCount

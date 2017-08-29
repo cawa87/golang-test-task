@@ -7,8 +7,9 @@ RUN apt-get update
 RUN apt-get -y install golang-go git
 RUN mkdir /go
 ENV GOPATH=/go
+ENV cuncurrentRequests
 
 RUN go get github.com/mrsavinov/golang-test-task
 RUN go build github.com/mrsavinov/golang-test-task
 
-CMD ["./golang-test-task", "-bind", "0.0.0.0:8888"]
+CMD ["./golang-test-task", "-bind", "0.0.0.0:8888", "-concurrentRequests", "2000", "-workers", "0"]
