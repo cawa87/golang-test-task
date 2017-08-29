@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"flag"
 	"io"
-	"log"
 	"net/http"
 	neturl "net/url"
 	"os"
+	"os/signal"
 	"runtime"
 	"strconv"
 	"sync"
@@ -297,13 +297,14 @@ func main() {
 	bindAddr := flag.String("bind", "", "address to bind")
 	workers := flag.Int("workers", cpusCount, "workers count")
 	limitOfConcurrentRequests := flag.Int("concurrentRequests", limitOfConcurrentRequestsDefault, "limit of cuncurrent requests")
+	enableDebugLogs := flag.Bool("debug", false, "enable debug and trace logs")
 	flag.Parse()
 	if bindAddr == nil || *bindAddr == "" {
 		flag.Usage()
 		os.Exit(1)
 
 	}
-	logger := NewLogger("", true, false, false)
+	logger := NewLogger("", true, *enableDebugLogs, *enableDebugLogs)
 	if *limitOfConcurrentRequests <= 0 {
 		*limitOfConcurrentRequests = limitOfConcurrentRequestsDefault
 	}
@@ -312,30 +313,42 @@ func main() {
 	if *workers <= 0 {
 		*workers = cpusCount
 	}
+	stopChan := make(chan os.Signal)
+	signal.Notify(stopChan, os.Interrupt)
 	//runtime.GOMAXPROCS(limitOfCuncurrentRequests + *workers + 1)
-	var waitGroup sync.WaitGroup
-	for i := 0; i < *workers; i++ {
-		logger.Info("Start thread:", i)
-		go func() {
-			waitGroup.Add(1)
-			defer waitGroup.Done()
-			for {
-				job, ok := <-resolver.jobsChannel
-				if !ok {
-					logger.Debug("Thread stopped")
-					break
+	{
+		var waitGroup sync.WaitGroup
+		for i := 0; i < *workers; i++ {
+			logger.Info("Start thread:", i)
+			go func() {
+				waitGroup.Add(1)
+				defer waitGroup.Done()
+				for {
+					job, ok := <-resolver.jobsChannel
+					if !ok {
+						logger.Info("Worker thread stopped")
+						break
+					}
+					logger.Debug("Job received")
+					job()
 				}
-				logger.Debug("Job received")
-				job()
+			}()
+		}
+		http.HandleFunc("/", resolver.handleResolve)
+
+		go func() {
+			if err := http.ListenAndServe(*bindAddr, nil); err != nil {
+				logger.Error("Error on serve:", err)
+				os.Exit(1)
 			}
 		}()
+		logger.Info("Server started")
+		<-stopChan
+		logger.Info("Shutting down server...")
+		close(resolver.jobsChannel)
+		logger.Info("Wait workers...")
+		waitGroup.Wait()
+		logger.Info("Server stopped")
 	}
-	http.HandleFunc("/resolve", resolver.handleResolve)
-	defer close(resolver.jobsChannel)
-	defer waitGroup.Wait()
-	if err := http.ListenAndServe(*bindAddr, nil); err != nil {
-		log.Println("Error on serve:", err)
-		os.Exit(1)
-	}
-
+	os.Exit(0)
 }
