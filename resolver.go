@@ -288,26 +288,37 @@ func (resolver *Resolver) handleResolve(w http.ResponseWriter, r *http.Request) 
 
 }
 
+const (
+	limitOfCuncurrentRequestsDefault = 2000
+)
+
 func main() {
+	cpusCount := runtime.NumCPU()
 	bindAddr := flag.String("bind", "", "address to bind")
+	workers := flag.Int("workers", cpusCount, "workers count")
+	limitOfCuncurrentRequests := flag.Int("cuncurrentRequests", limitOfCuncurrentRequestsDefault, "limit of cuncurrent requests")
 	flag.Parse()
 	if bindAddr == nil || *bindAddr == "" {
 		flag.Usage()
 		os.Exit(1)
 
 	}
-	logger := NewLogger("log.log", true, false, false)
-	limitOfCuncurrentRequests := 2000
-	resolver := NewResolver(time.Duration(10*1000*time.Millisecond), limitOfCuncurrentRequests, logger)
+	logger := NewLogger("", true, false, false)
+	if *limitOfCuncurrentRequests <= 0 {
+		*limitOfCuncurrentRequests = limitOfCuncurrentRequestsDefault
+	}
+	resolver := NewResolver(time.Duration(2*1000*time.Millisecond), *limitOfCuncurrentRequests, logger)
 	resolver.jobsChannel = make(chan func(), 1000000)
-	numCPUs := runtime.NumCPU()
-	runtime.GOMAXPROCS(numCPUs + 1) // numCPUs hot threads + one for async tasks.
+	if *workers <= 0 {
+		*workers = cpusCount
+	}
+	//runtime.GOMAXPROCS(limitOfCuncurrentRequests + *workers + 1)
 	var waitGroup sync.WaitGroup
-	for i := 0; i < numCPUs; i++ {
+	for i := 0; i < *workers; i++ {
 		logger.Info("Start thread:", i)
 		go func() {
 			waitGroup.Add(1)
-
+			defer waitGroup.Done()
 			for {
 				job, ok := <-resolver.jobsChannel
 				if !ok {
@@ -317,7 +328,6 @@ func main() {
 				logger.Debug("Job received")
 				job()
 			}
-			waitGroup.Done()
 		}()
 	}
 	http.HandleFunc("/resolve", resolver.handleResolve)
@@ -329,4 +339,3 @@ func main() {
 	}
 
 }
-
