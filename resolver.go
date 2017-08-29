@@ -11,10 +11,10 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/jeffail/tunny"
 	"github.com/pkg/errors"
 	xhtml "golang.org/x/net/html"
 )
@@ -59,9 +59,14 @@ type HandleContext struct {
 	log           *Logger
 }
 
+func (c *HandleContext) prepareURLContextes() {
+
+}
+
 func (c *HandleContext) clear() {
 	c.request = c.request[:cap(c.request)]
 	c.urlsToResolve = c.urlsToResolve[:0]
+	c.log.Debug("len c.urlsToResolve on clear:", len(c.urlsToResolve))
 	for _, uc := range c.urlContext {
 		uc.response = uc.response[0:cap(uc.response)]
 		uc.Elements = uc.Elements[:0]
@@ -77,17 +82,17 @@ func NewHandleContext(log *Logger) *HandleContext {
 	c := &HandleContext{
 		request:       make([]byte, 4096, 4096),
 		urlsToResolve: make([]string, 0, 128),
-		urlContext:    make([]*OneUrlContext, 0, 128),
+		urlContext:    make([]*OneUrlContext, 128, 128),
 		answerChannel: make(chan int, 128),
 		answeredCount: 0,
 		log:           log,
 	}
-	for i := 0; i < cap(c.urlContext); i++ {
-		c.urlContext = append(c.urlContext, &OneUrlContext{
+	for i := 0; i < len(c.urlContext); i++ {
+		c.urlContext[i] = &OneUrlContext{
 			response: make([]byte, 32767, 32767),
 			tags:     make(map[string]int64),
 			Elements: make([]*tagCounter, 0, 128),
-		})
+		}
 	}
 	c.clear()
 	return c
@@ -100,17 +105,17 @@ type Resolver struct {
 	contextes               []*HandleContext
 	contextBusy             []int32
 	countRequests           int64
-	workerPool              *tunny.WorkPool
+	jobsChannel             chan func()
 	log                     *Logger
 }
 
-func NewResolver(waitResponseTimeoutInMs time.Duration, limitRequests int) (r *Resolver) {
+func NewResolver(waitResponseTimeoutInMs time.Duration, limitRequests int, l *Logger) (r *Resolver) {
 	r = &Resolver{
 		waitResponseTimeoutInMs: waitResponseTimeoutInMs,
 		limitChannel:            make(chan bool, limitRequests),
 		contextes:               make([]*HandleContext, limitRequests),
 		contextBusy:             make([]int32, limitRequests),
-		log:                     NewLogger("log.lot", false, true, true),
+		log:                     l,
 	}
 	for i := 0; i < limitRequests; i++ {
 		r.limitChannel <- true
@@ -192,27 +197,31 @@ func (resolver *Resolver) resolveOneURL(urlContext *OneUrlContext, timeoutInMs t
 }
 
 func (resolver *Resolver) resolve(context *HandleContext) error {
+	log := resolver.log
 	i := 0
 	for index, url := range context.urlsToResolve {
 		urlContext := context.urlContext[index]
 		urlContext.URL = url
 		i++
-		resolver.workerPool.SendWorkAsync(urlContext, func(o interface{}, err error) {
+		log.Debug("Send job:", index)
+		resolver.jobsChannel <- func() {
+			_ = resolver.resolveOneURL(urlContext, resolver.waitResponseTimeoutInMs)
 			resolver.log.Trace(urlContext.URL, "answered")
 			context.answerChannel <- 1
-		})
+		}
 	}
-	resolver.log.Debug("Added:", i)
+	log.Debug("Added:", i)
 	for {
 		select {
 		case <-context.answerChannel:
 			context.answeredCount++
-			resolver.log.Trace("context.answeredCount", context.answeredCount, i)
+			log.Trace("context.answeredCount", context.answeredCount, i)
 			if context.answeredCount >= len(context.urlsToResolve) {
-				resolver.log.Trace("end")
+				log.Trace("end")
 				return nil
 			}
 		}
+		log.Trace("Wait")
 	}
 }
 
@@ -237,7 +246,7 @@ func (resolver *Resolver) getUrls(r *http.Request, context *HandleContext) error
 func (resolver *Resolver) handleResolve(w http.ResponseWriter, r *http.Request) {
 	val := atomic.AddInt64(&resolver.countRequests, 1)
 	log := resolver.log
-	log.Debug("Requests:", val)
+	log.Info("Requests:", val)
 	<-resolver.limitChannel
 	index := 0
 	for i, val := range resolver.contextBusy {
@@ -253,7 +262,7 @@ func (resolver *Resolver) handleResolve(w http.ResponseWriter, r *http.Request) 
 	context := resolver.contextes[index]
 	defer func() {
 		val := atomic.AddInt64(&resolver.countRequests, -1)
-		log.Debug("Requests:", val)
+		log.Info("Requests:", val)
 		resolver.limitChannel <- true
 		context.clear()
 		atomic.StoreInt32(&resolver.contextBusy[index], 0)
@@ -266,9 +275,8 @@ func (resolver *Resolver) handleResolve(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Incorect request format.", int(httpBadRequest))
 	} else {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		enc := json.NewEncoder(w)
 
-		if err := enc.Encode(context.urlContext); err != nil {
+		if err := json.NewEncoder(w).Encode(context.urlContext); err != nil {
 			log.Debug("Encode error:", err)
 			http.Error(w, "Incorect request format.", int(httpBadRequest))
 		}
@@ -284,20 +292,36 @@ func main() {
 		os.Exit(1)
 
 	}
+	logger := NewLogger("log.log", true, false, false)
 	limitOfCuncurrentRequests := 2000
-	resolver := NewResolver(time.Duration(10*1000*time.Millisecond), limitOfCuncurrentRequests)
+	resolver := NewResolver(time.Duration(10*1000*time.Millisecond), limitOfCuncurrentRequests, logger)
+	resolver.jobsChannel = make(chan func(), 1000000)
 	numCPUs := runtime.NumCPU()
 	runtime.GOMAXPROCS(numCPUs + 1) // numCPUs hot threads + one for async tasks.
-	resolver.workerPool, _ = tunny.CreatePool(numCPUs, func(object interface{}) interface{} {
-		context := object.(*OneUrlContext)
-		_ = resolver.resolveOneURL(context, resolver.waitResponseTimeoutInMs)
-		return nil
+	var waitGroup sync.WaitGroup
+	for i := 0; i < numCPUs; i++ {
+		logger.Info("Start thread:", i)
+		go func() {
+			waitGroup.Add(1)
 
-	}).Open()
-	defer resolver.workerPool.Close()
+			for {
+				job, ok := <-resolver.jobsChannel
+				if !ok {
+					logger.Debug("Thread stopped")
+					break
+				}
+				logger.Debug("Job received")
+				job()
+			}
+			waitGroup.Done()
+		}()
+	}
 	http.HandleFunc("/resolve", resolver.handleResolve)
+	defer close(resolver.jobsChannel)
+	defer waitGroup.Wait()
 	if err := http.ListenAndServe(*bindAddr, nil); err != nil {
 		log.Println("Error on serve:", err)
 		os.Exit(1)
 	}
+
 }
