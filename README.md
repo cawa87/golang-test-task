@@ -1,6 +1,12 @@
 # golang-test-task
 Тестовая задача для Golang разработчика
 
+## Docker run
+docker run -p 0.0.0.0:8888:8888 -e BIND_ADD=<addr:port> -e WORKERS=<1...(if 0 set WORKERS to CPU CORES)> -e CONCURRENT_REQUESTS=<1...(if 0 set 2000)> -d
+docker run -p 0.0.0.0:8888:8888 -e BIND_ADD=<addr:port> -e WORKERS=<1...(if 0 set WORKERS to CPU CORES)> -e CONCURRENT_REQUESTS=<1...(if 0 set 2000)> -d
+
+docker run -p 0.0.0.0:8888:8888 -e BIND_ADD=0.0.0.0:8888 -e WORKERS=50 -e CONCURRENT_REQUESTS=20000 -d
+docker run -p 0.0.0.0:8888:8888 -e BIND_ADD=0.0.0.0:8888 -e WORKERS=0 -e CONCURRENT_REQUESTS=0 -d
 
 ## Задача
 
