@@ -36,7 +36,7 @@ func NewHTTPHandler(endpoints endpoint.Set, logger log.Logger) *routing.Router {
 
 		var urls *routing.RouteGroup
 		{
-			urls = v1.Group("/")
+			urls = v1.Group("")
 			urls.Post("", httptransport.NewServer(
 				endpoints.PostURLsEndpoint,
 				decodePostURLsRequest,
