@@ -1,0 +1,35 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Crawl",
+    "version": "v0.0.1"
+  },
+  "host": "localhost:9000",
+  "schemes": [
+    "http"
+  ],
+  "basePath": "/",
+  "paths": {
+    "/v1": {
+      "post": {
+        "summary": "PostURLs",
+        "description": "",
+        "consumes": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "[\"http://lenta.ru\",\"http://www.ebay.com/itm/Mini-DC-5-120V-Voltmeter-Blue-LED-Panel-3-Digital-Display-Voltage-Meter-2-wire-/400985227720\",\"http://ya.ru\"]"
+            },
+            "in": "body",
+            "name": "body"
+          }
+        ]
+      }
+    }
+  },
+  "tags": []
+}
