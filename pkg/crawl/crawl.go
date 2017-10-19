@@ -66,14 +66,10 @@ func (c *basicCrawl) getPageTagCounts(b io.Reader) map[string]int {
 		if tt == html.ErrorToken {
 			break
 		}
-		switch {
-		case tt == html.StartTagToken:
+		switch tt {
+		case html.StartTagToken, html.SelfClosingTagToken:
 			t := z.Token()
-			if _, ok := tagCounter[t.Data]; !ok {
-				tagCounter[t.Data] = 1
-			} else {
-				tagCounter[t.Data]++
-			}
+			tagCounter[t.Data]++
 		}
 	}
 	return tagCounter
