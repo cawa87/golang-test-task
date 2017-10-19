@@ -1,96 +1,29 @@
-# golang-test-task
-Тестовая задача для Golang разработчика
+# Crawl
 
+# Env
 
-## Задача
+| Name  | Description | Default 
+|-------|-------------|---------
+| CRAWL_BIND_ADDR         | Bind address        | :9000
+| CRAWL_MAX_WORKERS       | Max Scrape Workers  | 100
 
-- Форкнуть репозиторий
-- Написать сервис на Golang, который бы принимал POST-запрос с json-массивом url-ов в теле и возвращал ответ с JSON-массивом вида, [схемы](http://json-schema.org/):
+# Install
 
-```
-{
-  "type": "array",
-  "items": {
-    "type": "object",
-    "required": ["url", "meta"],
-    "properties": {
-      "url": {
-        "type": "string",
-        "format": "uri",
-        "description": "uri from input list"
-      },
-      "meta": {
-        "type": "object",
-        "required": ["status"],
-        "properties": {
-          "status": {
-              "type": "integer",
-              "description": "Response status of this uri"
-          },
-          "content-type": {
-               "type": "string",
-               "description": "In case of 2XX response status, value of mime-type part of Content-Type header (if exists)"
-          },
-          "content-length": {
-                "type": "integer",
-                "minimum": 0,
-                "description": "In case of 2XX response status, length of response body (be careful, response could be chunked)."
-          }
-        }
-      },
-      "elemets": {
-        "type": "array",
-        "description": "In case of 2XX response status, \"text\/html\" content type and non-zero content length, list of HTML-tags, occured.",
-        "items": {
-          "type": "object",
-          "required": ["tag-name", "count"],
-          "properties": {
-            "tag-name": {"type": "string"},
-            "count": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Number of times, the current tag occures in response"
-            }
-          }
-        }
-      }
-    }
-  }
-}
+``` bash 
+mkdir $GOPATH/github.com/l-vitaly/golang-test-task
+cd $GOPATH/src/github.com/l-vitaly/golang-test-task
+git clone git@github.com:l-vitaly/golang-test-task.git
+cd golang-test-task
+make dep install
 ```
 
-- Завернуть сервис в docker-контейнер.
+# Docker build image
 
-Пример запроса:
-```js
-[
-  "http://www.example.com/",
-  // ...
-]
+``` bash 
+mkdir $GOPATH/github.com/l-vitaly/golang-test-task
+cd $GOPATH/src/github.com/l-vitaly/golang-test-task
+git clone git@github.com:l-vitaly/golang-test-task.git
+cd golang-test-task
+make docker c="crawl"
+docker run -d -P --name crawl crawl
 ```
-Пример ответа:
-```js
-[
-  {
-    "url": "http://www.example.com/",
-    "meta": {
-      "status": 199,
-      "content-type": "text\/html",
-      "content-length": 605
-    },
-    "elemets": [
-      {
-        "tag-name": "html",
-        "count": 0
-      },
-      {
-        "tag-name": "head",
-        "count": 0
-      },
-      // ...
-    ]
-  },
-  // ...
-]
-```
-
