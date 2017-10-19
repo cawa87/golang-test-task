@@ -16,7 +16,7 @@ import (
 var errBadRequest = errors.New("bad request")
 
 type failer interface {
-	Fail() error
+	Failed() error
 }
 
 // NewHTTPHandler new server http handler.
@@ -60,8 +60,8 @@ func decodePostURLsRequest(ctx context.Context, r *fasthttp.Request) (interface{
 }
 
 func encodePostURLsResponse(ctx context.Context, r *fasthttp.Response, response interface{}) error {
-	if e, ok := response.(failer); ok && e.Fail() != nil {
-		encodeError(e.Fail(), r)
+	if e, ok := response.(failer); ok && e.Failed() != nil {
+		encodeError(e.Failed(), r)
 		return nil
 	}
 	r.Header.Set("Content-Type", "application/json; charset=utf-8")

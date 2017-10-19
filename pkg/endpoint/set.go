@@ -31,11 +31,13 @@ func makePostURLsEndpoint(s service.Service) endpoint.Endpoint {
 	}
 }
 
+// PostURLsResponse collects the request parameters for the PostURLs method.
 type PostURLsResponse struct {
 	Data []crawl.Result `json:"data"`
 	Err  error          `json:"error,omitempty"`
 }
 
-func (r PostURLsResponse) Fail() error {
+// Failed implements Failer.
+func (r PostURLsResponse) Failed() error {
 	return r.Err
 }
