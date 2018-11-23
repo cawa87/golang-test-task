@@ -67,7 +67,7 @@ func (c *HealthChecker) FindMin() (min Status) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	min.Respond = math.MaxInt64
+	min.Respond = math.Inf(+1)
 	for _, s := range c.status {
 		if s.Live && s.Respond < min.Respond {
 			min = s
@@ -119,9 +119,9 @@ func checkSite(site string, timeout time.Duration) (time.Duration, error) {
 	elapsed := time.Since(start)
 
 	if err != nil {
-		return 0, err
+		return elapsed, err
 	}
-	defer res.Body.Close()
+	res.Body.Close()
 
 	if !(200 <= res.StatusCode && res.StatusCode < 300) {
 		return elapsed, errNon2XX

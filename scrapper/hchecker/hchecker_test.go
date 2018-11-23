@@ -79,8 +79,7 @@ func TestCheckSite(t *testing.T) {
 			time.Sleep(time.Second)
 		}))
 
-		respond, err := checkSite(srv.URL, 100*time.Millisecond)
+		_, err := checkSite(srv.URL, 100*time.Millisecond)
 		require.Error(t, err)
-		require.Zero(t, respond)
 	})
 }

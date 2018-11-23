@@ -7,6 +7,8 @@ import (
 	"net/http"
 )
 
+// GET /status
+// GET /status?site=<site>
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	if site := q.Get("site"); site != "" {
@@ -25,6 +27,7 @@ func (s *Server) statusOf(w http.ResponseWriter, site string) {
 	s.writeStatus(w, []hchecker.Status{status})
 }
 
+// GET /status/min
 func (s *Server) statusMin(w http.ResponseWriter, r *http.Request) {
 	status := s.HChecker.FindMin()
 	if status.Site == "" {
@@ -34,6 +37,7 @@ func (s *Server) statusMin(w http.ResponseWriter, r *http.Request) {
 	s.writeStatus(w, []hchecker.Status{status})
 }
 
+// GET /status/max
 func (s *Server) statusMax(w http.ResponseWriter, r *http.Request) {
 	status := s.HChecker.FindMax()
 	if status.Site == "" {
