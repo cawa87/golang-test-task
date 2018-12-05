@@ -1,7 +1,4 @@
-# golang-test-task
-Тестовые задания - Golang
-
-
-Для решения:
- - Форкнуть репозиторий
- - Сделать PR по выполнению
+# HOWTO
+1. cd scrapper
+2. go build main.go
+3. ./main
