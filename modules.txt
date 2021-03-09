@@ -1,0 +1,2 @@
+# github.com/swipe-io/swipe/v2 v2.0.0-rc1
+github.com/swipe-io/swipe/v2
