@@ -107,11 +107,9 @@ func (s *service) scrapAllSites(ctx context.Context, done <-chan struct{}, hosts
 
 func (s *service) scrapSite(site string) (domain string, latency int64, status int, err error) {
 	d, err := s.repo.GetByDomain(site)
-	// If domain not found must be exist a function
 	if err != nil {
 		return
 	}
-	// get first scrapper by cursor
 	l, ss, err := Scrap(d.Domain)
 	if err != nil {
 		ss = 0
