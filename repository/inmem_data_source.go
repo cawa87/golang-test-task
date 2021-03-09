@@ -94,7 +94,7 @@ func (ds *datasource) GetByDomain(domain string) (site model.Host, err error) {
 
 }
 
-func (ds *datasource) GetAllSites() []string {
+func (ds *datasource) GetAllHosts() []string {
 	return ds.hosts
 }
 
@@ -116,6 +116,6 @@ func (ds *datasource) updateMetrics(host model.Host) error {
 
 }
 
-func (ds *datasource) CountSites() int {
+func (ds *datasource) GetCount() int {
 	return len(ds.hosts)
 }

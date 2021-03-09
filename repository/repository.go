@@ -10,6 +10,6 @@ type Repository interface {
 	GetMaxLatency() (result model.Host, err error)
 	GetMinLatency() (result model.Host, err error)
 	GetByDomain(domain string) (host model.Host, err error)
-	CountSites() int
-	GetAllSites() []string
+	GetCount() int
+	GetAllHosts() []string
 }

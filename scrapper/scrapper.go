@@ -48,12 +48,12 @@ func NewHTTPService(repo repository.Repository) Service {
 
 func (s *service) StartScrapWithContext(ctx context.Context) (err error) {
 	var (
-		sites = s.repo.GetAllSites()
+		hosts = s.repo.GetAllHosts()
 	)
 	done := make(chan struct{})
 	defer close(done)
 
-	c, errc := s.scrapAllSites(ctx, done, sites)
+	c, errc := s.scrapAllSites(ctx, done, hosts)
 
 	for r := range c {
 		if r.err != nil {
@@ -75,13 +75,13 @@ type result struct {
 	err     error
 }
 
-func (s *service) scrapAllSites(ctx context.Context, done <-chan struct{}, sites []string) (<-chan result, <-chan error) {
+func (s *service) scrapAllSites(ctx context.Context, done <-chan struct{}, hosts []string) (<-chan result, <-chan error) {
 	c := make(chan result)
 	errc := make(chan error, 1)
 
 	go func() {
 		var wg sync.WaitGroup
-		for _, site := range sites {
+		for _, host := range hosts {
 			wg.Add(1)
 			go func(domain string) {
 				domain, latency, status, err := s.scrapSite(domain)
@@ -93,7 +93,7 @@ func (s *service) scrapAllSites(ctx context.Context, done <-chan struct{}, sites
 				case <-done:
 				}
 				wg.Done()
-			}(site)
+			}(host)
 		}
 
 		go func() {
@@ -106,8 +106,6 @@ func (s *service) scrapAllSites(ctx context.Context, done <-chan struct{}, sites
 }
 
 func (s *service) scrapSite(site string) (domain string, latency int64, status int, err error) {
-	// w.Add(1)
-	// defer w.Done()
 	d, err := s.repo.GetByDomain(site)
 	// If domain not found must be exist a function
 	if err != nil {

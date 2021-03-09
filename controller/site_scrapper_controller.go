@@ -41,7 +41,7 @@ func (sc *siteScrapperController) GetByDomain(ctx context.Context, domain string
 	return host.Latency, host.HTTPStatusCode, nil
 }
 func (sc *siteScrapperController) GetCount(ctx context.Context) int {
-	length := len(sc.repository.GetAllSites())
+	length := sc.repository.GetCount()
 
 	return length
 }
